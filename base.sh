@@ -57,8 +57,7 @@ function throw_error() {
 }
 
 function debug() {
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "-v((\s*-)|\$)" && msg "${ORG}$1${NF}"
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "--verbose((\s*-)|\$)" && msg "${ORG}$1${NF}"
+  echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && msg "${ORG}$1${NF}"
 }
 
 function has_flag() {
@@ -68,11 +67,12 @@ function has_flag() {
 function has_param() {
   local short="-${1}"
   local long="--${2-NOT_EXISTS}"
+  local regex="((\s*-)|\$)([\s-\w]*|\$)"
   debug "SCRIPT_ARGS_STR: $SCRIPT_ARGS_STR"
   debug "short: ${short}"
   debug "long: ${long}"
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "${short}([\s-\w]*|\$)" && return 0
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "${long}([\s-\w]*|\$)" && return 0
+  echo "${SCRIPT_ARGS_STR}" | grep -qPe "${short}${regex}" && return 0
+  echo "${SCRIPT_ARGS_STR}" | grep -qPe "${long}${regex}" && return 0
   return 1
 
 }
@@ -80,9 +80,24 @@ function has_param() {
 function get_param() {
   param=()
   local args_array=($SCRIPT_ARGS_STR)
-  for par in "${args_array[@]}"; do
-    echo "$par"
+  local short="${1}"
+  local long="${2}"
+  local found=false
+  for opt in "${args_array[@]}"; do
+
+    if $found; then
+      if [ ${opt:0:1} != '-' ]; then
+        param="${opt}"
+        return 0
+      fi
+      found=false
+    fi
+
+    if [ "${opt}" == "-$short" ] || [ "${opt}" == "--$long" ]; then
+      found=true
+    fi
   done
+  return 1
 }
 
 function main() {
@@ -90,12 +105,13 @@ function main() {
   setup_consts
   param=()
   # if has_flag "v" "verbose"; then
-    if has_param "h" "help"; then
+  if has_param "h" "help"; then
     echo "it has"
   else
     echo 'it doesnt have'
   fi
-  # get_param "h" "help"
+  get_param "a" "action"
+  test $? -eq 0 && echo "param: ${param}"
   exit 0
   initialize_vars
   parse_params $@
@@ -164,11 +180,11 @@ function main() {
 }
 
 [[ $(type -t setup_default) != function ]] && setup_default() {
-  msg "${BLACK}No defaults${NOFORMAT}"
+  debug "${BLACK}No defaults${NOFORMAT}"
 }
 
 [[ $(type -t initialize_vars) != function ]] && initialize_vars() {
-  msg "${BLACK}No vars were initialized${NOFORMAT}"
+  debug "${BLACK}No vars were initialized${NOFORMAT}"
 }
 
 [[ $(type -t run) != function ]] && run() {
