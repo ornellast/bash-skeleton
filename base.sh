@@ -6,7 +6,7 @@ trap cleanup SIGINT SIGTERM ERR EXIT
 function cleanup() {
   trap - SIGINT SIGTERM ERR EXIT
   # script cleanup here
-  msg "${BLK}cleanup called${NF}"
+  debug "${BLK}cleanup called${NF}"
 }
 
 readonly SCRIPT_ARGS_STR="$@"
@@ -16,6 +16,8 @@ function setup_consts() {
   readonly SCRIPT_NAME="$(basename $0)"
   readonly CURRENT_FOLDER="$(basename $PWD)"
   readonly RUNNING_FROM="${PWD}"
+
+  param=()
 }
 
 function setup_colors() {
@@ -29,7 +31,7 @@ function setup_colors() {
     PURPLE='\033[1;35m'
     CYAN='\033[0;36m'
   else
-    NOFORMAT='' NF='' BLACK='' RED='' GREEN='' ORANGE='' BLUE='' PURPLE='' CYAN=''
+    NOFORMAT='' BLACK='' RED='' GREEN='' ORANGE='' BLUE='' PURPLE='' CYAN=''
   fi
 
   NF="${NOFORMAT}" BLK="${BLACK}" RED="${RED}" GRN="${GREEN}" ORG="${ORANGE}" BLU="${BLUE}" PPL="${PURPLE}" CYN="${CYAN}"
@@ -57,7 +59,8 @@ function throw_error() {
 }
 
 function debug() {
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && msg "${ORG}$1${NF}"
+  echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && msg "$1"
+  return 0
 }
 
 function has_flag() {
@@ -67,14 +70,10 @@ function has_flag() {
 function has_param() {
   local short="-${1}"
   local long="--${2-NOT_EXISTS}"
-  local regex="((\s*-)|\$)([\s-\w]*|\$)"
-  debug "SCRIPT_ARGS_STR: $SCRIPT_ARGS_STR"
-  debug "short: ${short}"
-  debug "long: ${long}"
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "${short}${regex}" && return 0
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "${long}${regex}" && return 0
+  local regex="((\s*-)|\$)([\s\w]*|\$)"
+  debug "Validating '${RED}${SCRIPT_ARGS_STR}${NF}' against '${RED}(${short}|${long})${regex}${NF}'"
+  echo "${SCRIPT_ARGS_STR}" | grep -qPe "((^|\s+)${short}|${long})${regex}" && return 0
   return 1
-
 }
 
 function get_param() {
@@ -103,16 +102,6 @@ function get_param() {
 function main() {
   setup_colors
   setup_consts
-  param=()
-  # if has_flag "v" "verbose"; then
-  if has_param "h" "help"; then
-    echo "it has"
-  else
-    echo 'it doesnt have'
-  fi
-  get_param "a" "action"
-  test $? -eq 0 && echo "param: ${param}"
-  exit 0
   initialize_vars
   parse_params $@
   setup_colors
@@ -123,7 +112,7 @@ function main() {
 
 [[ $(type -t usage) != function ]] && usage() {
 
-  msg "Usage: ${SCRIPT_NAME} [-h | --help] [OPTIONS]"
+  msg "Usage: ${SCRIPT_NAME} [-h | --help] [PARAMS]"
   msg ""
   msg "This script is just a skeleton for the others. It implements 'final' functions:"
   msg ""
@@ -144,7 +133,7 @@ function main() {
   msg "  - run"
   msg ""
   msg ""
-  msg "Available options:"
+  msg "Available flags:"
   msg "-h, --help    Print this help and exit."
 
   exit
@@ -165,8 +154,11 @@ function main() {
     #   [[ "$1" != 'start' ]] && [[ "$1" != 'stop' ]] && [[ "$1" != 'restart' ]] && throw_error "--action must be either start, stop or restart"
     #   action="$1"
     #   ;;g
+    -v | --verbose)
+      msg "${BLK}Verbose enabled${NF}"
+      ;;
     -?*)
-      throw_error "Unknown option: $1"
+      throw_error "Unknown param: $1"
       ;;
     *)
       break
@@ -180,11 +172,11 @@ function main() {
 }
 
 [[ $(type -t setup_default) != function ]] && setup_default() {
-  debug "${BLACK}No defaults${NOFORMAT}"
+  debug "${BLACK}No defaults${NF}"
 }
 
 [[ $(type -t initialize_vars) != function ]] && initialize_vars() {
-  debug "${BLACK}No vars were initialized${NOFORMAT}"
+  debug "${BLACK}No vars were initialized${NF}"
 }
 
 [[ $(type -t run) != function ]] && run() {
