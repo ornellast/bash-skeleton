@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-set -Eeuo pipefail
-trap _cleanup SIGINT SIGTERM ERR EXIT
+# set -Eeuo pipefail
+# trap _cleanup SIGINT SIGTERM ERR EXIT
 
 (return 0 2>/dev/null) && sourced=1 || sourced=0
 readonly sourced
@@ -12,14 +12,20 @@ readonly SCRIPT_NAME="$(basename $0)"
 readonly CURRENT_FOLDER="$(basename $PWD)"
 readonly RUNNING_FROM="${PWD}"
 
-colored_output_configured=0
-param=()
-
 source ./colors
 
-##      #####
+# Initilizing vars and setting up colors.
+param=''
+
+is_verbose=0
+echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && is_verbose=1
+readonly is_verbose
+
+echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-nc|--no-colors?)((\s*-)|\$)" && remove_colors || colorize
+
+##                            #####
 ## READ ONLY functions - BEGIN
-##      #####
+##                            #####
 
 # Whenever the script exits this function will be called
 function _cleanup() {
@@ -43,7 +49,7 @@ function assert_var() {
 # Params:
 #   $1 message to print
 function debug() {
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && msg "${BLACK}$1${NF}"
+  [ $is_verbose -eq 1 ] && msg "${BLACK}$1${NF}"
   # echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && msg "$1"
   return 0
 }
@@ -54,22 +60,24 @@ function debug() {
 #   $1 parameter's short name
 #   $2 parameter's long name
 function get_param() {
-  param=()
+  param=''
   local args_array=($SCRIPT_ARGS_STR)
-  local short="${1}"
-  local long="${2}"
+  local short="-${1}"
+  local long="--${2}"
   local found=false
+  debug "Trying to get the param (${short}|${long})"
   for opt in "${args_array[@]}"; do
 
     if $found; then
       if [ ${opt:0:1} != '-' ]; then
+        debug "Param (${short}|${long}) was found: ${opt}"
         param="${opt}"
         return 0
       fi
       found=false
     fi
 
-    if [ "${opt}" == "-$short" ] || [ "${opt}" == "--$long" ]; then
+    if [ "${opt}" == "$short" ] || [ "${opt}" == "$long" ]; then
       found=true
     fi
   done
@@ -81,7 +89,10 @@ function get_param() {
 #   $1 flag's short name
 #   $2 flag's long name
 function has_flag() {
-  has_param $@ && return 0 || return 1
+  local short="-${1}"
+  local long="--${2-NOT_EXISTS}"
+  local regex="((\s+-)|\$)"
+  echo "${SCRIPT_ARGS_STR}" | grep -qPe "((^|\s+)${short}|${long})${regex}" && return 0 || return 1
 }
 
 # Checks if a parameter is present among the script's arguments and return success or failure
@@ -91,10 +102,9 @@ function has_flag() {
 function has_param() {
   local short="-${1}"
   local long="--${2-NOT_EXISTS}"
-  # local regex="((\s+-)|\$)([\s\w]*|\$)"
-  local regex="((-[\s-\w]*)|\$)"
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "((^|\s+)${short}|${long})${regex}" && return 0
-  return 1
+  # local regex="((\s+-)|\$)|([\s\w]*|\$)"
+  local regex="((\s+\w+).*)"
+  echo "${SCRIPT_ARGS_STR}" | grep -qPe "((^|\s+)${short}|${long})${regex}" && return 0 || return 1
 }
 
 function main() {
@@ -104,10 +114,12 @@ function main() {
     exit
   fi
   initialize_vars
-  parse_params $@
-  setup_colors
+  debug "Parsing params ${SCRIPT_ARGS_STR}"
+  parse_params $SCRIPT_ARGS_STR
+  debug 'Params parsed'
   setup_default
 
+  debug "Calling 'run' function"
   run
 }
 
@@ -116,23 +128,17 @@ function msg() {
   echo >&2 -e "${1-}"
 }
 
-# Configures if the output will be colored
-function setup_colors() {
-  if [ $colored_output_configured -eq 0 ]; then
-    local no_color=0
-    has_flag 'nc' 'no-color' && no_color=1
-    if [ $no_color -eq 0 ] && [[ "${TERM-}" != "dumb" ]]; then
-      colorize
-      debug "Colored output was set"
-    else
-      remove_colors
-      debug 'Colored output was removed'
-    fi
-
-    MAIN_COLOR="${NOFORMAT}"
-    HIGHLIGHT_COLOR="${GREEN}"
-    colored_output_configured=1
-  fi
+# Renames a declared function from $1 to $2. Allowing to override it.
+# Params:
+#   $1 function to rename
+#   $2 new function's name. Defaults to 'base.$1'
+function rename_function() {
+  declare -F $1 >/dev/null || return 1
+  [ -n "${2-}" ] && new_name=$2 || new_name="base.${1}"
+  eval "$(
+    echo "${new_name}()"
+    declare -f ${1} | tail -n +2
+  )"
 }
 
 # Write a message to the console and exits with the provided code# Params:
@@ -145,29 +151,27 @@ function throw_error() {
   exit "$code"
 }
 
-setup_colors
+readonly -f _cleanup assert_var debug get_param has_flag has_param main msg rename_function throw_error
 
-readonly -f _cleanup assert_var debug get_param has_flag has_param main msg setup_colors throw_error
-
-##      #####
+##                            #####
 ## READ ONLY functions - END
-##      #####
-
-##      #####
+##
 ## Unsetable functions - BEGIN
-##      #####
+##                            #####
 
+# Initializes script's variables before the params are parsed
 function initialize_vars() {
-  debug "${BLACK}No vars were initialized${NF}"
+  debug "${BLACK}No vars initialization${NF}"
 }
 
+# Does some dummy parsing. By overriding it you have to redeclare the last three cases (in that order)
 function parse_params() {
   while :; do
     case "${1-}" in
     -h | --help)
       usage
       ;;
-    --no-color)
+    -nc | --no-colors?)
       NO_COLOR=1
       ;;
     ##    usage example
@@ -175,13 +179,16 @@ function parse_params() {
     #   shift
     #   [[ "$1" != 'start' ]] && [[ "$1" != 'stop' ]] && [[ "$1" != 'restart' ]] && throw_error "--action must be either start, stop or restart"
     #   action="$1"
-    #   ;;g
-    -v | --verbose)
-      msg "${BLK}Verbose enabled${NF}"
-      ;;
+    #   ;;
+
+    # Declared to avoid throwing error
+    -v | --verbose) ;;
+
+    # If a parameter (not null) is passed to the script, it throws an error
     -?*)
       throw_error "Unknown param: $1"
       ;;
+    # If ${1-} is null it ends the loop
     *)
       break
       ;;
@@ -193,40 +200,46 @@ function parse_params() {
 
 }
 
-# Sets the basic
+# Sets script's constants
 function setup_consts() {
   debug "No constants"
 }
 
+# After the params are parsed it is clled to setup the default values
 function setup_default() {
   debug "${BLACK}No defaults${NF}"
 }
 
 function usage() {
 
+  [[ $sourced -eq 1 ]] && msg "${ORG}\n!!!!!!\n You should override ${PPL}usage${ORG} fuction. Otherwise the default usage method is called\n!!!!!!\n\n${NF}"
+
   msg "Usage: ${SCRIPT_NAME} [-h | --help]"
-  msg ""
-  msg "This script is just a skeleton for the others. It implements 'readonly' functions:"
-  msg ""
-  msg "  - ${CYN}_cleanup${NF}: "
-  msg "  - ${CYN}assert_var${NF}: "
-  msg "  - ${CYN}debug${NF}: "
-  msg "  - ${CYN}get_param${NF}: "
-  msg "  - ${CYN}has_flag${NF}: "
-  msg "  - ${CYN}has_param${NF}: "
-  msg "  - ${CYN}main${NF}: "
-  msg "  - ${CYN}msg${NF}: "
-  msg "  - ${CYN}setup_colors${NF}: "
-  msg "  - ${CYN}setup_consts${NF}: "
-  msg "  - ${CYN}throw_error${NF}: "
-  msg ""
-  msg "and functions that may be overriden (by unsetting them before):"
-  msg ""
-  msg "  - ${BLU}usage${NF}, ${BLU}parse_params${NF}, ${BLU}setup_default${NF}, ${BLU}initialize_vars${NF}, ${BLU}run${NF}"
-  msg ""
-  msg ""
-  msg "Available flags:"
-  msg "-h, --help    Print this help and exit."
+  echo ''
+  msg "This script is just a skeleton for others scripts. Although it runs, it does nothing. It implements 'readonly' functions:"
+  echo ''
+  msg "  ${CYN}_cleanup${NF}, ${CYN}assert_var${NF}, ${CYN}debug${NF}, ${CYN}get_param${NF}, ${CYN}has_flag${NF}, ${CYN}has_param${NF},"
+  msg "  ${CYN}main${NF}, ${CYN}msg${NF}, ${CYN}rename_function${NF}, and ${CYN}throw_error${NF}"
+  echo ''
+  msg "and functions that may be overriden (or renamed unsetting them before):"
+  echo ''
+  msg "  ${BLU}usage${NF}, ${BLU}parse_params${NF}, ${BLU}setup_consts${NF}, ${BLU}setup_default${NF}, ${BLU}initialize_vars${NF}, ${BLU}run${NF}"
+  echo ''
+  echo ''
+  msg "After you've sourced this file, and in the very end of your script, you have to call the ${GRN}main${NF} function."
+  msg "It will call the others function in that order:"
+  msg '  - setup_consts'
+  msg '  - usage: if -h | --help is present and exit'
+  msg '  - initialize_vars'
+  msg '  - parse_params'
+  msg '  - setup_default'
+  msg '  - run'
+  echo ''
+  echo ''
+  msg 'Available flags:'
+  msg '-h, --help                   Prints this help and exit.'
+  msg '-nc, --no-color, no-colors   Disable output color.'
+  msg '-v, --verbose                Increase the output message. debug method checks whether it should print or not.'
 
   exit
 }
@@ -240,9 +253,9 @@ function run() {
   msg "\t-${GREEN}parse_params${NOFORMAT}\n"
 }
 
-##      #####
+##                            #####
 ## Unsetable functions - END
-##      #####
+##                            #####
 
 # main $@
 # echo "sourced: $sourced"
