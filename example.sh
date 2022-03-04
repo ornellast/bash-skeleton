@@ -21,7 +21,7 @@ function setup_default() {
 function initialize_vars() {
   action=''
   directory_to_list="${RUNNING_FROM}"
-  list_is_present=()
+  list_is_present=''
 }
 
 function parse_params() {
@@ -87,10 +87,15 @@ main
 $(has_flag 'nc' 'no-color') && msg "\n\nNO colors\n\n" || msg "\n\n${GRN}WITH${NF} colors\n\n"
 
 # Enabling colors if it is disabled (-nc | --no-colors?)
-msg 'Enabling colors if it is disabled (-nc | --no-colors?)'
-$(has_flag 'nc' 'no-color') && colorize
+$(has_flag 'nc' 'no-color') && {
+  colorize
+  msg "(${BLK}-nc${NF}|${BLK}--no-colors?${NF}) is present. Enabling colors"
+}
 
 info "Info message (blue)"
 warning "Warning message (orange/yellow)"
 error "Error message (red)"
 
+get_param_or_default 'l' ' list' '/mnt/c/data/personal'
+
+info "Param: $RED$param"

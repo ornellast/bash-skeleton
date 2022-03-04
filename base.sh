@@ -53,7 +53,7 @@ function debug() {
 #   $1 parameter's short name
 #   $2 parameter's long name
 function get_param() {
-  param=''
+  param=()
   local args_array=($BASE_SCRIPT_ARGS_STR)
   local short="-${1}"
   local long="--${2}"
@@ -63,7 +63,7 @@ function get_param() {
 
     if $found; then
       if [ ${opt:0:1} != '-' ]; then
-        debug "Param (${short}|${long}) was found: ${opt}"
+        debug "Param (${short}|${long}) was found: $ORG${opt}$BLK"
         param="${opt}"
         return 0
       fi
@@ -75,6 +75,20 @@ function get_param() {
     fi
   done
   return 1
+}
+
+# Search for both short or long names among the script's arguments.
+# If they are found sets the global var "param"'s value and return success, otherwise uses the default one
+# Params:
+#   $1 parameter's short name
+#   $2 parameter's long name
+#   $3 The default value to be used in case it is not found/set
+function get_param_or_default() {
+  if ! get_param "$1" "$2" ; then
+    debug "Param '${1}' not found. Using the default '$3'"
+    param="$3"
+  fi
+  return 0
 }
 
 # Checks if a flag is present among the script's arguments and return success or failure
