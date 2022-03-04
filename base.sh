@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# set -Eeuo pipefail
-# trap _cleanup SIGINT SIGTERM ERR EXIT
+set -Eeuo pipefail
+trap cleanup SIGINT SIGTERM ERR EXIT
 
 (return 0 2>/dev/null) && sourced=1 || sourced=0
 readonly sourced
@@ -26,13 +26,6 @@ echo "${BASE_SCRIPT_ARGS_STR}" | grep -qPe "(-nc|--no-colors?)((\s*-)|\$)" && re
 ##                            #####
 ## READ ONLY functions - BEGIN
 ##                            #####
-
-# Whenever the script exits this function will be called
-function _cleanup() {
-  trap - SIGINT SIGTERM ERR EXIT
-  # script cleanup here
-  debug "${BLK}Cleanning up things${NF}"
-}
 
 # Utility function to assert if a var has value. Otherwise prints a message with the var name
 # Params:
@@ -146,13 +139,20 @@ function throw_error() {
   exit "$code"
 }
 
-readonly -f _cleanup assert_var debug get_param has_flag has_param main rename_function throw_error
+readonly -f assert_var debug get_param has_flag has_param main rename_function throw_error
 
 ##                            #####
 ## READ ONLY functions - END
 ##
 ## Unsetable functions - BEGIN
 ##                            #####
+
+# Whenever the script exits this function will be called
+function cleanup() {
+  trap - SIGINT SIGTERM ERR EXIT
+  # script cleanup here
+  debug "${BLK}Cleanning up things${NF}"
+}
 
 # Initializes script's variables before the params are parsed
 function initialize_vars() {
@@ -211,8 +211,8 @@ function usage() {
   echo ''
   msg "This script is just a skeleton for others scripts. Although it runs, it does nothing. It implements 'readonly' functions:"
   echo ''
-  msg "  ${CYN}_cleanup${NF}, ${CYN}assert_var${NF}, ${CYN}debug${NF}, ${CYN}get_param${NF}, ${CYN}has_flag${NF}, ${CYN}has_param${NF},"
-  msg "  ${CYN}main${NF}, ${CYN}msg${NF}, ${CYN}rename_function${NF}, and ${CYN}throw_error${NF}"
+  msg "  ${CYN}cleanup${NF}, ${CYN}assert_var${NF}, ${CYN}debug${NF}, ${CYN}get_param${NF}, ${CYN}has_flag${NF}, ${CYN}has_param${NF},"
+  msg "  ${CYN}main${NF}, ${CYN}rename_function${NF}, and ${CYN}throw_error${NF}"
   echo ''
   msg "and functions that may be overriden (or renamed unsetting them before):"
   echo ''
