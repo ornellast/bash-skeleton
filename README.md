@@ -1,5 +1,7 @@
 # base.sh
-`base.sh` is just a skeleton to be used by others scripts. Although it runs, it does nothing. It implements readonly functions:
+`base.sh` is just a skeleton to be used by others scripts. Although it runs, it does nothing. 
+It *imports* `writer.sh` (that *imports* `colors.sh` in its turn) to make use of `msg`, `info`, `warning`, and `error` functions (declared in *writer.sh*) and `colorize`, `remove_colors`, and `update_short_names_values` (functions declared in *colors.sh*).
+Besides that, it implements these readonly functions:
 
 - `assert_var `: Utility function to assert if a var has value. Otherwise prints a message with the var name and calls the `usage` function. Params:
   - `$1`: variable value.
@@ -44,5 +46,5 @@ and functions that may be overriden (and/or renamed them before):
 - `run`: The core function that is called after the script is ready to be executed. From this one, you can call any of yours.
 
 
-After you've sourced `base.sh` file, and you want everything run *automatically*, you have to call the `main` function in the very end of your script.
+After you've sourced `base.sh` file, and you want that everything run *automatically*, you have to call the `main` function in the very end of your script.
 If, on the other hand, you only want to use the utilities function, just *source* `base.sh` and use then on your way.

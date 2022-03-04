@@ -54,4 +54,6 @@ function remove_colors() {
   update_short_names_values
 }
 
+readonly -f  update_short_names_values colorize remove_colors
+
 colorize
