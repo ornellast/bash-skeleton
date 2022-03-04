@@ -5,23 +5,23 @@
 
 (return 0 2>/dev/null) && sourced=1 || sourced=0
 readonly sourced
-readonly SCRIPT_ARGS_STR="$@"
-readonly SCRIPT_PATH_RELATIVE="$(dirname $0)"
-readonly SCRIPT_PATH_ABSOLUTE="$(realpath $SCRIPT_PATH_RELATIVE)"
-readonly SCRIPT_NAME="$(basename $0)"
+readonly BASE_SCRIPT_ARGS_STR="$@"
+readonly BASE_SCRIPT_RELATIVE_PATH="$(dirname $0)"
+readonly BASE_SCRIPT_ABSOLUTE_PATH="$(realpath $BASE_SCRIPT_RELATIVE_PATH)"
+readonly BASE_SCRIPT_NAME="$(basename $0)"
 readonly CURRENT_FOLDER="$(basename $PWD)"
 readonly RUNNING_FROM="${PWD}"
 
-source ./colors
+source "${BASE_SCRIPT_ABSOLUTE_PATH}/writer.sh"
 
 # Initilizing vars and setting up colors.
 param=''
 
 is_verbose=0
-echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && is_verbose=1
+echo "${BASE_SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && is_verbose=1
 readonly is_verbose
 
-echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-nc|--no-colors?)((\s*-)|\$)" && remove_colors || colorize
+echo "${BASE_SCRIPT_ARGS_STR}" | grep -qPe "(-nc|--no-colors?)((\s*-)|\$)" && remove_colors || colorize
 
 ##                            #####
 ## READ ONLY functions - BEGIN
@@ -40,7 +40,7 @@ function _cleanup() {
 #   $2 var name
 function assert_var() {
   if [[ ${#1} -eq 0 ]]; then
-    msg "\n${RED}$2${NOFORMAT} is mandatory\n\n"
+    error "$2 is mandatory\n\n"
     usage
   fi
 }
@@ -50,7 +50,7 @@ function assert_var() {
 #   $1 message to print
 function debug() {
   [ $is_verbose -eq 1 ] && msg "${BLACK}$1${NF}"
-  # echo "${SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && msg "$1"
+  # echo "${BASE_SCRIPT_ARGS_STR}" | grep -qPe "(-v|--verbose)((\s*-)|\$)" && msg "$1"
   return 0
 }
 
@@ -61,7 +61,7 @@ function debug() {
 #   $2 parameter's long name
 function get_param() {
   param=''
-  local args_array=($SCRIPT_ARGS_STR)
+  local args_array=($BASE_SCRIPT_ARGS_STR)
   local short="-${1}"
   local long="--${2}"
   local found=false
@@ -92,7 +92,7 @@ function has_flag() {
   local short="-${1}"
   local long="--${2-NOT_EXISTS}"
   local regex="((\s+-)|\$)"
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "((^|\s+)${short}|${long})${regex}" && return 0 || return 1
+  echo "${BASE_SCRIPT_ARGS_STR}" | grep -qPe "((^|\s+)${short}|${long})${regex}" && return 0 || return 1
 }
 
 # Checks if a parameter is present among the script's arguments and return success or failure
@@ -104,7 +104,7 @@ function has_param() {
   local long="--${2-NOT_EXISTS}"
   # local regex="((\s+-)|\$)|([\s\w]*|\$)"
   local regex="((\s+\w+).*)"
-  echo "${SCRIPT_ARGS_STR}" | grep -qPe "((^|\s+)${short}|${long})${regex}" && return 0 || return 1
+  echo "${BASE_SCRIPT_ARGS_STR}" | grep -qPe "((^|\s+)${short}|${long})${regex}" && return 0 || return 1
 }
 
 function main() {
@@ -114,18 +114,13 @@ function main() {
     exit
   fi
   initialize_vars
-  debug "Parsing params ${SCRIPT_ARGS_STR}"
-  parse_params $SCRIPT_ARGS_STR
+  debug "Parsing params ${BASE_SCRIPT_ARGS_STR}"
+  parse_params $BASE_SCRIPT_ARGS_STR
   debug 'Params parsed'
   setup_default
 
   debug "Calling 'run' function"
   run
-}
-
-# Prints a message (echo) to the console evaluating (-e) the content
-function msg() {
-  echo >&2 -e "${1-}"
 }
 
 # Renames a declared function from $1 to $2. Allowing to override it.
@@ -147,11 +142,11 @@ function rename_function() {
 function throw_error() {
   local msg=$1
   local code=${2-1} # default exit status 1
-  msg "[$code] ${RED}${msg}${NF}"
+  error "[$code] ${msg}"
   exit "$code"
 }
 
-readonly -f _cleanup assert_var debug get_param has_flag has_param main msg rename_function throw_error
+readonly -f _cleanup assert_var debug get_param has_flag has_param main rename_function throw_error
 
 ##                            #####
 ## READ ONLY functions - END
@@ -164,15 +159,12 @@ function initialize_vars() {
   debug "${BLACK}No vars initialization${NF}"
 }
 
-# Does some dummy parsing. By overriding it you have to redeclare the last three cases (in that order)
+# Does some dummy parsing. By overriding it you have to redeclare the last four cases (in that order)
 function parse_params() {
   while :; do
     case "${1-}" in
     -h | --help)
       usage
-      ;;
-    -nc | --no-colors?)
-      NO_COLOR=1
       ;;
     ##    usage example
     # -a | --action)
@@ -181,14 +173,15 @@ function parse_params() {
     #   action="$1"
     #   ;;
 
-    # Declared to avoid throwing error
+    # Both declared to avoid throwing error
+    -nc | --no-colors?) ;;
     -v | --verbose) ;;
 
     # If a parameter (not null) is passed to the script, it throws an error
     -?*)
       throw_error "Unknown param: $1"
       ;;
-    # If ${1-} is null it ends the loop
+    # If ${1-} is 'null' it ends the loop
     *)
       break
       ;;
@@ -212,9 +205,9 @@ function setup_default() {
 
 function usage() {
 
-  [[ $sourced -eq 1 ]] && msg "${ORG}\n!!!!!!\n You should override ${PPL}usage${ORG} fuction. Otherwise the default usage method is called\n!!!!!!\n\n${NF}"
+  [[ $sourced -eq 1 ]] && warning "\n!!!!!!\n You should override 'usage' fuction. Otherwise the default usage function is called\n!!!!!!\n\n"
 
-  msg "Usage: ${SCRIPT_NAME} [-h | --help]"
+  msg "Usage: ${BASE_SCRIPT_NAME} [-h | --help]"
   echo ''
   msg "This script is just a skeleton for others scripts. Although it runs, it does nothing. It implements 'readonly' functions:"
   echo ''

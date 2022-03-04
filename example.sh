@@ -4,17 +4,17 @@
 source ./base.sh
 
 # The readonly function are NOT renamed only copied
-rename_function 'msg' 'new_msg_fnc'
+rename_function 'info' 'new_info_fnc'
 
 # Copying base's setup_default function to a new one 'base.setup_default'
 rename_function 'setup_default'
 
 # Overriding base's setup_default function
 function setup_default() {
-  msg "Overriding setup default and executing something before"
+  warning "Overriding setup default and executing something before"
   # Calling base's setup_default function
   base.setup_default
-  new_msg_fnc "Executing something after"
+  new_info_fnc "Executing something after"
 }
 
 # Overriding base's setup_default function
@@ -39,14 +39,16 @@ function parse_params() {
         directory_to_list="${1}"
       fi
       ;;
-    # Declared to avoid throwing error
+
+    # Both declared to avoid throwing error
+    -nc | --no-colors?) ;;
     -v | --verbose) ;;
 
     # If a parameter (not null) is passed to the script, it throws an error
     -?*)
       throw_error "Unknown param: $1"
       ;;
-    # If ${1-} is null it ends the loop
+    # If ${1-} is 'null' it ends the loop
     *)
       break
       ;;
@@ -59,15 +61,15 @@ function parse_params() {
 
 # Overriding base's run function
 function run() {
+  info "Calling print_action_value function"
   print_action_value
+  info "Calling ls_directory function"
   ls_directory
 }
 
 # Custom function called inside of run
 function print_action_value() {
   get_param 'a' 'action'
-  echo "last output: $?"
-  echo "param: $param"
   msg "Executing ${BLU}${param}${NF} action"
 }
 
@@ -79,7 +81,16 @@ function ls_directory() {
   fi
 }
 
-# Main have to be added in the very end of the script
+# Main have to be added in the end of functions' declarations or in the end of file
 main
 
-$(has_flag 'l' 'list') && msg "NO colors" || msg "${GRN}WITH${NF} colors"
+$(has_flag 'nc' 'no-color') && msg "\n\nNO colors\n\n" || msg "\n\n${GRN}WITH${NF} colors\n\n"
+
+# Enabling colors if it is disabled (-nc | --no-colors?)
+msg 'Enabling colors if it is disabled (-nc | --no-colors?)'
+$(has_flag 'nc' 'no-color') && colorize
+
+info "Info message (blue)"
+warning "Warning message (orange/yellow)"
+error "Error message (red)"
+
